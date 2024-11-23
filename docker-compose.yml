@@ -1,0 +1,43 @@
+version: "2.3"
+
+services:
+    postgres:
+        container_name: uservice-dynconf-postgres
+        image: postgres:12
+        environment:
+          - POSTGRES_DB=uservice_dynconf
+          - POSTGRES_USER=uservice_dynconf
+          - POSTGRES_PASSWORD=password
+        ports:
+          - 6432:5432
+        volumes:
+          - ./postgresql/schemas:/docker-entrypoint-initdb.d
+          - ./.pgdata:/var/lib/postgresql/data
+        networks:
+          - postgres
+
+    uservice-dynconf-container:
+        image: ghcr.io/userver-framework/ubuntu-22.04-userver-pg:latest
+        privileged: true
+        environment:
+          - POSTGRES_DB=uservice_dynconf
+          - POSTGRES_USER=uservice_dynconf
+          - POSTGRES_PASSWORD=password
+          - PREFIX=${PREFIX:-~/.local}
+          - CCACHE_DIR=/uservice-dynconf/.ccache
+          - CORES_DIR=/cores
+        volumes:
+          - .:/uservice-dynconf:rw
+        ports:
+          - 8083:8083
+        working_dir: /uservice-dynconf
+        entrypoint:
+          - ./tests/run_as_user.sh
+        depends_on:
+          - postgres
+        networks:
+          - postgres
+
+networks:
+    postgres:
+        driver: bridge

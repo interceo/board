@@ -1,0 +1,15 @@
+__pycache__
+build*
+compile_commands.json
+.cache/
+.ccache/
+.idea/
+.pgdata/
+.cores/
+.vscode/
+!.vscode/c_cpp_properties.json
+!.vscode/cmake-variants.yaml
+!.vscode/README.md
+cmake-build-debug/
+Testing/
+Makefile.local
