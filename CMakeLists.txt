@@ -4,5 +4,5 @@ project(imageboard)
 set(CMAKE_CXX_STANDARD 20)
 
 find_package(Drogon CONFIG REQUIRED)
-add_executable(imageboard main.cpp)
+add_executable(imageboard main.cpp views/get_time.cpp views/get_threads.cpp)
 target_link_libraries(imageboard PRIVATE Drogon::Drogon)
