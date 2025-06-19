@@ -28,16 +28,6 @@ int main()
 
     drogon::app().addDbClient(cfg);
 
-    drogon::app().registerHandler("/time",
-                                  [](const HttpRequestPtr &,
-                                     std::function<void(const HttpResponsePtr &)> &&callback)
-                                  {
-                                      Json::Value resp;
-                                      resp["server_time"] = now_iso8601();
-                                      callback(HttpResponse::newHttpJsonResponse(resp));
-                                  },
-                                  {Get});
-
     drogon::app().addListener("127.0.0.1", 8088).setThreadNum(16).run();
     return 0;
 }

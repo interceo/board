@@ -4,115 +4,191 @@
 #include <drogon/orm/Field.h>
 #include <json/json.h>
 
+#include "views/get_time.hpp"
+
 using namespace drogon;
 
-void BoardController::createSection(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+void BoardController::GetTime(const drogon::HttpRequestPtr &req,
+			      std::function<void(const drogon::HttpResponsePtr &)> &&callback)
 {
-    auto db = app().getDbClient("imageboard");
-    auto json = req->getJsonObject();
-    if (!json || !json->isMember("name"))
-    {
-        callback(HttpResponse::newHttpJsonResponse(Json::Value("Missing 'name' field")));
-        return;
-    }
-    std::string name = (*json)["name"].asString();
-    db->execSqlAsync("INSERT INTO sections(name) VALUES($1) RETURNING id", [callback](const drogon::orm::Result &r)
-                     {
-            Json::Value resp;
-            resp["id"] = r[0]["id"].as<int>();
-            callback(HttpResponse::newHttpJsonResponse(resp)); }, [callback](const drogon::orm::DrogonDbException &e)
-                     {
-            auto resp = HttpResponse::newHttpResponse();
-            resp->setStatusCode(k500InternalServerError);
-            resp->setBody("DB error: " + std::string(e.base().what()));
-            callback(resp); }, name);
+	Json::Value resp;
+	resp["time"] = now_iso8601();
+	resp["sosal?"] = bool(rand() ^ 1) ? "да" : "нет";
+	callback(HttpResponse::newHttpJsonResponse(std::move(resp)));
 }
 
-void BoardController::createThread(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int sectionId)
+void BoardController::GetThread(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback,
+				const std::string &board_name, const size_t thread_id)
 {
-    auto db = app().getDbClient("imageboard");
-    auto json = req->getJsonObject();
-    if (!json || !json->isMember("title"))
-    {
-        callback(HttpResponse::newHttpJsonResponse(Json::Value("Missing 'title' field")));
-        return;
-    }
-    std::string title = (*json)["title"].asString();
-    db->execSqlAsync(
-        "INSERT INTO threads(section_id, title) VALUES($1, $2) RETURNING id, created_at",
-        [callback](const drogon::orm::Result &r)
-        {
-            Json::Value resp;
-            resp["id"] = r[0]["id"].as<Json::Int64>();
-            resp["created_at"] = r[0]["created_at"].as<std::string>();
-            callback(HttpResponse::newHttpJsonResponse(resp));
-        },
-        [callback](const drogon::orm::DrogonDbException &e)
-        {
-            auto resp = HttpResponse::newHttpResponse();
-            resp->setStatusCode(k500InternalServerError);
-            resp->setBody("DB error: " + std::string(e.base().what()));
-            callback(resp);
-        },
-        sectionId, title);
+	auto db = app().getDbClient("imageboard");
+
+	auto future = db->execSqlAsyncFuture(
+		R"(
+            SELECT
+                post_number,
+                title,
+                created_at
+            FROM post
+            WHERE fk_board_name = $1 AND parent_id = $2
+            ORDER BY post_number ASC
+        )",
+		board_name, thread_id);
+
+	try {
+		const auto rows = future.get();
+
+		Json::Value resp(Json::arrayValue);
+		for (const auto &row : rows) {
+			Json::Value thread;
+			thread["id"] = row["post_number"].as<Json::Int64>();
+			thread["title"] = row["title"].as<std::string>();
+			thread["created_at"] = row["created_at"].as<std::string>();
+			resp.append(std::move(thread));
+		}
+		callback(HttpResponse::newHttpJsonResponse(std::move(resp)));
+	} catch (const std::exception &e) {
+		auto resp = HttpResponse::newHttpResponse();
+		resp->setStatusCode(k500InternalServerError);
+		resp->setBody("DB error: " + std::string(e.what()));
+		callback(resp);
+	}
 }
 
-void BoardController::getThread(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, long long threadId)
+void BoardController::GetThreads(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback,
+				 const std::string &board_name)
 {
-    auto db = app().getDbClient("imageboard");
-    db->execSqlAsync(
-        "SELECT id, section_id, title, created_at FROM threads WHERE id=$1",
-        [callback](const drogon::orm::Result &r)
-        {
-            if (r.empty())
-            {
-                auto resp = HttpResponse::newHttpResponse();
-                resp->setStatusCode(k404NotFound);
-                resp->setBody("Thread not found");
-                callback(resp);
-                return;
-            }
-            Json::Value resp;
-            resp["id"] = r[0]["id"].as<Json::Int64>();
-            resp["section_id"] = r[0]["section_id"].as<int>();
-            resp["title"] = r[0]["title"].as<std::string>();
-            resp["created_at"] = r[0]["created_at"].as<std::string>();
-            callback(HttpResponse::newHttpJsonResponse(resp));
-        },
-        [callback](const drogon::orm::DrogonDbException &e)
-        {
-            auto resp = HttpResponse::newHttpResponse();
-            resp->setStatusCode(k500InternalServerError);
-            resp->setBody("DB error: " + std::string(e.base().what()));
-            callback(resp);
-        },
-        threadId);
+	auto db = app().getDbClient("imageboard");
+
+	auto future = db->execSqlAsyncFuture(
+		R"(
+            SELECT
+                post_number,
+                title,
+                created_at
+            FROM post
+            WHERE fk_board_name = $1 AND parent_id IS NULL
+            ORDER BY created_at DESC
+        )",
+		board_name);
+
+	try {
+		const auto rows = future.get();
+
+		Json::Value resp(Json::arrayValue);
+		for (const auto &row : rows) {
+			Json::Value thread;
+			thread["id"] = row["post_number"].as<Json::Int64>();
+			thread["title"] = row["title"].as<std::string>();
+			thread["created_at"] = row["created_at"].as<std::string>();
+			resp.append(std::move(thread));
+		}
+		callback(HttpResponse::newHttpJsonResponse(std::move(resp)));
+	} catch (const std::exception &e) {
+		auto resp = HttpResponse::newHttpResponse();
+		resp->setStatusCode(k500InternalServerError);
+		resp->setBody("DB error: " + std::string(e.what()));
+		callback(resp);
+	}
 }
 
-void BoardController::getSectionThreads(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback, int sectionId)
+void BoardController::CreateThread(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback,
+				   const std::string &board_name)
 {
-    auto db = app().getDbClient("imageboard");
-    db->execSqlAsync(
-        "SELECT id, title, created_at FROM threads WHERE section_id=$1 ORDER BY created_at DESC",
-        [callback](const drogon::orm::Result &r)
-        {
-            Json::Value resp(Json::arrayValue);
-            for (auto row : r)
-            {
-                Json::Value thread;
-                thread["id"] = row["id"].as<Json::Int64>();
-                thread["title"] = row["title"].as<std::string>();
-                thread["created_at"] = row["created_at"].as<std::string>();
-                resp.append(thread);
-            }
-            callback(HttpResponse::newHttpJsonResponse(resp));
-        },
-        [callback](const drogon::orm::DrogonDbException &e)
-        {
-            auto resp = HttpResponse::newHttpResponse();
-            resp->setStatusCode(k500InternalServerError);
-            resp->setBody("DB error: " + std::string(e.base().what()));
-            callback(resp);
-        },
-        sectionId);
+	auto json_request_opt = req->getJsonObject();
+	if (!json_request_opt || !json_request_opt->isMember("title")) {
+		callback(HttpResponse::newHttpJsonResponse(Json::Value("Missing 'name' field")));
+		return;
+	}
+
+	const auto &json_request = *json_request_opt;
+	if (!json_request_opt->isMember("title")) {
+		callback(HttpResponse::newHttpJsonResponse(Json::Value("Missing 'title' field")));
+		return;
+	}
+
+	auto db = app().getDbClient("imageboard");
+
+	try {
+		const auto result = db->execSqlSync(
+			R"(
+            INSERT INTO post (fk_board_name, title)
+            VALUES($1, $2)
+            RETURNING post_number
+        )",
+			board_name, json_request["title"]);
+
+		Json::Value thread;
+		if (!result.empty()) {
+			thread["id"] = result.front()["post_number"].as<Json::Int64>();
+		}
+
+		callback(HttpResponse::newHttpJsonResponse(std::move(thread)));
+	} catch (const std::exception &e) {
+		auto resp = HttpResponse::newHttpResponse();
+		resp->setStatusCode(k500InternalServerError);
+		resp->setBody("DB error: " + std::string(e.what()));
+		callback(resp);
+	}
+}
+
+void BoardController::CreatePost(const drogon::HttpRequestPtr &req, std::function<void(const drogon::HttpResponsePtr &)> &&callback,
+		const std::string &board_name, const size_t thread_id)
+{
+	auto json_request_opt = req->getJsonObject();
+	if (!json_request_opt || !json_request_opt->isMember("title")) {
+		callback(HttpResponse::newHttpJsonResponse(Json::Value("Missing 'name' field")));
+		return;
+	}
+
+	const auto &json_request = *json_request_opt;
+	if (!json_request_opt->isMember("title")) {
+		callback(HttpResponse::newHttpJsonResponse(Json::Value("Missing 'title' field")));
+		return;
+	}
+
+	auto db = app().getDbClient("imageboard");
+
+	try {
+		const auto result = db->execSqlSync(
+			R"(
+            INSERT INTO post (fk_board_name, title, parent_id)
+            VALUES($1, $2, $3)
+            RETURNING post_number
+        )",
+			board_name, json_request["title"], thread_id);
+
+		Json::Value thread;
+		if (!result.empty()) {
+			thread["id"] = result.front()["post_number"].as<Json::Int64>();
+		}
+
+		callback(HttpResponse::newHttpJsonResponse(std::move(thread)));
+	} catch (const std::exception &e) {
+		auto resp = HttpResponse::newHttpResponse();
+		resp->setStatusCode(k500InternalServerError);
+		resp->setBody("DB error: " + std::string(e.what()));
+		callback(resp);
+	}
+}
+
+void BoardController::CreateBoard(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback,
+				  const std::string &board_name)
+{
+	auto db = app().getDbClient("imageboard");
+
+	try {
+		const auto result = db->execSqlSync(
+			R"(
+                INSERT INTO board (name)
+                VALUES($1)
+            )",
+			board_name);
+
+		callback(HttpResponse::newHttpJsonResponse({}));
+	} catch (const std::exception &e) {
+		auto resp = HttpResponse::newHttpResponse();
+		resp->setStatusCode(k500InternalServerError);
+		resp->setBody("DB error: " + std::string(e.what()));
+		callback(resp);
+	}
 }
