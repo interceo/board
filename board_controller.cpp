@@ -8,13 +8,45 @@
 
 using namespace drogon;
 
-void BoardController::GetTime(const drogon::HttpRequestPtr &req,
-			      std::function<void(const drogon::HttpResponsePtr &)> &&callback)
+void BoardController::GetTime(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
 {
 	Json::Value resp;
 	resp["time"] = now_iso8601();
-	resp["sosal?"] = bool(rand() ^ 1) ? "да" : "нет";
+	resp["sosal?"] = bool(rand() & 1) ? "да" : "нет";
 	callback(HttpResponse::newHttpJsonResponse(std::move(resp)));
+}
+
+void BoardController::GetBoards(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback)
+{
+	auto db = app().getDbClient("imageboard");
+
+	LOG_DEBUG << "Recieve board!";
+
+	auto future = db->execSqlAsyncFuture(
+		R"(
+            SELECT
+                name
+            FROM board
+        )");
+
+	try {
+		const auto rows = future.get();
+		Json::Value resp(Json::arrayValue);
+
+		for (const auto &row : rows) {
+			Json::Value thread;
+
+			thread["name"] = row["name"].as<std::string>();
+			resp.append(std::move(thread));
+		}
+
+		callback(HttpResponse::newHttpJsonResponse(std::move(resp)));
+	} catch (const std::exception &e) {
+		auto resp = HttpResponse::newHttpResponse();
+		resp->setStatusCode(k500InternalServerError);
+		resp->setBody("DB error: " + std::string(e.what()));
+		callback(resp);
+	}
 }
 
 void BoardController::GetThread(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback,
@@ -29,17 +61,20 @@ void BoardController::GetThread(const HttpRequestPtr &req, std::function<void(co
                 title,
                 created_at
             FROM post
-            WHERE fk_board_name = $1 AND parent_id = $2
+            WHERE
+				(fk_board_name = $1 AND parent_id = $2) OR
+				(fk_board_name = $1 AND post_number = $2)
             ORDER BY post_number ASC
         )",
 		board_name, thread_id);
 
 	try {
 		const auto rows = future.get();
-
 		Json::Value resp(Json::arrayValue);
+
 		for (const auto &row : rows) {
 			Json::Value thread;
+
 			thread["id"] = row["post_number"].as<Json::Int64>();
 			thread["title"] = row["title"].as<std::string>();
 			thread["created_at"] = row["created_at"].as<std::string>();
@@ -73,10 +108,11 @@ void BoardController::GetThreads(const HttpRequestPtr &req, std::function<void(c
 
 	try {
 		const auto rows = future.get();
-
 		Json::Value resp(Json::arrayValue);
+
 		for (const auto &row : rows) {
 			Json::Value thread;
+
 			thread["id"] = row["post_number"].as<Json::Int64>();
 			thread["title"] = row["title"].as<std::string>();
 			thread["created_at"] = row["created_at"].as<std::string>();
@@ -118,6 +154,7 @@ void BoardController::CreateThread(const HttpRequestPtr &req, std::function<void
 			board_name, json_request["title"]);
 
 		Json::Value thread;
+
 		if (!result.empty()) {
 			thread["id"] = result.front()["post_number"].as<Json::Int64>();
 		}
@@ -131,8 +168,8 @@ void BoardController::CreateThread(const HttpRequestPtr &req, std::function<void
 	}
 }
 
-void BoardController::CreatePost(const drogon::HttpRequestPtr &req, std::function<void(const drogon::HttpResponsePtr &)> &&callback,
-		const std::string &board_name, const size_t thread_id)
+void BoardController::CreatePost(const HttpRequestPtr &req, std::function<void(const HttpResponsePtr &)> &&callback,
+				 const std::string &board_name, const size_t thread_id)
 {
 	auto json_request_opt = req->getJsonObject();
 	if (!json_request_opt || !json_request_opt->isMember("title")) {

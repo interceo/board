@@ -79,6 +79,11 @@
         "print": "cpp",
         "hash_map": "cpp",
         "regex": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "hash_set": "cpp",
+        "__tree": "cpp",
+        "list": "cpp",
+        "set": "cpp",
+        "unordered_set": "cpp"
     }
 }
