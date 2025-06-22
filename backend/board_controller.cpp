@@ -28,8 +28,10 @@ void BoardController::GetBoards(const HttpRequestPtr &req, std::function<void(co
 	auto future = db->execSqlAsyncFuture(
 		R"(
             SELECT
-                name
+                board.name,
+				board_counter.next_post_number
             FROM board
+			JOIN board_counter ON board.name = board_counter.board_name
         )");
 
 	try {
@@ -37,10 +39,11 @@ void BoardController::GetBoards(const HttpRequestPtr &req, std::function<void(co
 		Json::Value resp(Json::arrayValue);
 
 		for (const auto &row : rows) {
-			Json::Value thread;
+			Json::Value board;
 
-			thread["name"] = row["name"].as<std::string>();
-			resp.append(std::move(thread));
+			board["name"] = row["name"].as<std::string>();
+			board["thread_count"] = row["next_post_number"].as<Json::Int64>();
+			resp.append(std::move(board));
 		}
 
 		callback(HttpResponse::newHttpJsonResponse(std::move(resp)));

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forum</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="app-container">
+        <!-- Content will be loaded here -->
+    </div>
+    
+    <!-- Load all JavaScript files -->
+    <script src="js/utility.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/controllers.js"></script>
+    <script src="js/router.js"></script>
+    <script>
+        // Initialize the router when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            ForumRouter.init();
+        });
+    </script>
+</body>
+</html>

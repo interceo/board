@@ -1,0 +1,35 @@
+<div class="container">
+    <header>
+        <h1>Thread View</h1>
+    </header>
+    
+    <main>
+        <div id="loading">Loading thread...</div>
+        <div id="error" class="hidden"></div>
+        
+        <div class="actions">
+            <a href="#" id="back-to-board" class="back-btn">Back to Board</a>
+        </div>
+        
+        <div id="thread-container"></div>
+        
+        <div id="reply-form" class="hidden">
+            <h3>Post a Reply</h3>
+            <form id="post-form">
+                <div class="form-group">
+                    <label for="author">Name (optional):</label>
+                    <input type="text" id="author" name="author" placeholder="Anonymous">
+                </div>
+                <div class="form-group">
+                    <label for="content">Message:</label>
+                    <textarea id="content" name="content" required rows="5"></textarea>
+                </div>
+                <button type="submit" class="submit-btn">Post Reply</button>
+            </form>
+        </div>
+    </main>
+    
+    <footer>
+        <p>Forum API Demo - <span id="server-time">Loading time...</span></p>
+    </footer>
+</div>

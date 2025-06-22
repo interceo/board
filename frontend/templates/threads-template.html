@@ -1,0 +1,30 @@
+<div class="container">
+    <header>
+        <h1>Forum Threads</h1>
+    </header>
+    
+    <main>
+        <div id="loading">Loading threads...</div>
+        <div id="error" class="hidden"></div>
+        
+        <div id="board-info" class="board-info hidden">
+            <h2 id="board-name">Board Name</h2>
+            <p id="board-description">Board description will appear here.</p>
+        </div>
+        
+        <div class="actions">
+            <a href="/" class="back-btn">Back to Boards</a>
+            <a href="#" id="create-thread-link" class="create-thread-btn">Create New Thread</a>
+        </div>
+        
+        <ul id="threads-container" class="thread-list"></ul>
+        
+        <div id="no-threads" class="hidden">
+            <p>No threads found in this board. Be the first to create one!</p>
+        </div>
+    </main>
+    
+    <footer>
+        <p>Forum API Demo - <span id="server-time">Loading time...</span></p>
+    </footer>
+</div>
