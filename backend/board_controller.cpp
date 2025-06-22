@@ -2,7 +2,10 @@
 #include <drogon/drogon.h>
 #include <drogon/orm/DbClient.h>
 #include <drogon/orm/Field.h>
+
 #include <json/json.h>
+#include <fmt/format.h>
+#include <fmt/compile.h>
 
 #include "views/get_time.hpp"
 
@@ -218,8 +221,18 @@ void BoardController::CreateBoard(const HttpRequestPtr &req, std::function<void(
 			R"(
                 INSERT INTO board (name)
                 VALUES($1)
+				ON CONFLICT DO NOTHING
+				RETURNING name
             )",
 			board_name);
+
+		Json::Value thread;
+		if (result.empty()) {
+			auto resp = HttpResponse::newHttpResponse();
+			resp->setStatusCode(k202Accepted);
+			resp->setBody(fmt::format(FMT_COMPILE("Board {} already exist"), board_name));
+			callback(resp);
+		}
 
 		callback(HttpResponse::newHttpJsonResponse({}));
 	} catch (const std::exception &e) {

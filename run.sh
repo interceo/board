@@ -1,6 +1,2 @@
-sh ./clear.sh
-mkdir build
-cd build
-cmake ..
-make
-./imageboard
+cd backend
+sh ./run.sh
